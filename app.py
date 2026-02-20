@@ -23,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 NPTEL Analytics Dashboard")
+st.title("📊 Analytics Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
@@ -196,4 +196,5 @@ if uploaded_file:
 
 else:
     st.info("⬆ Upload CSV file to start analysis")
+
 
