@@ -4,29 +4,74 @@ import plotly.express as px
 import re
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Santhosh | NPTEL Analytics", layout="wide")
+st.set_page_config(
+    page_title="Santhosh | NPTEL Analytics",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# ---------------- BACKGROUND STYLE ----------------
+# ---------------- MODERN LIGHT UI + NPTEL WATERMARK ----------------
 st.markdown("""
 <style>
+
+/* Force light background */
+html, body, [data-testid="stAppViewContainer"] {
+    background-color: #f8fafc !important;
+}
+
+/* NPTEL Watermark */
 .stApp {
     background-image: url("https://upload.wikimedia.org/wikipedia/en/0/00/NPTEL_logo.png");
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 350px;
+    background-size: 420px;
     background-attachment: fixed;
 }
+
+/* Main Container Card */
 .block-container {
-    background-color: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.96);
     padding: 2rem;
-    border-radius: 12px;
+    border-radius: 18px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
 }
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg,#ffffff,#f1f5f9);
+}
+
+/* KPI Cards */
+[data-testid="metric-container"] {
+    background: #ffffff;
+    padding: 15px;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    transition: 0.3s ease;
+}
+[data-testid="metric-container"]:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(90deg,#2563eb,#3b82f6);
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    border: none;
+}
+.stButton>button:hover {
+    transform: scale(1.05);
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- PAGE NAVIGATION ----------------
 page = st.sidebar.radio(
-    "Select Page",
+    "Navigation",
     ["📊 Dashboard", "📧 Email Cleaner"]
 )
 
@@ -36,7 +81,7 @@ page = st.sidebar.radio(
 
 if page == "📊 Dashboard":
 
-    st.title("📊 Santhosh Analytics Dashboard")
+    st.title("📊 NPTEL Analytics Dashboard")
 
     uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
@@ -44,7 +89,6 @@ if page == "📊 Dashboard":
 
         df = pd.read_csv(uploaded_file, encoding="latin1", low_memory=False)
         df.columns = df.columns.str.strip()
-        df_original = df.copy()
 
         # Detect important columns
         email_col = [c for c in df.columns if "email" in c.lower()][0]
@@ -56,32 +100,18 @@ if page == "📊 Dashboard":
 
         df["out_of_25"] = pd.to_numeric(df["out_of_25"], errors="coerce")
 
-        # ---------------- KPI SECTION ----------------
+        # KPI Section
         k1, k2, k3, k4 = st.columns(4)
-
-        k1.metric("Total Candidates", df_original[email_col].nunique())
-        k2.metric("Unique Courses", df_original[course_col].nunique())
-        k3.metric("Total Records", len(df_original))
-        k4.metric("Average Score", round(df_original["out_of_25"].mean(), 2))
+        k1.metric("Total Candidates", df[email_col].nunique())
+        k2.metric("Unique Courses", df[course_col].nunique())
+        k3.metric("Total Records", len(df))
+        k4.metric("Average Score", round(df["out_of_25"].mean(), 2))
 
         st.divider()
 
-        df_filtered = df_original.copy()
-
-        # ---------------- SEARCH ----------------
-        search = st.text_input("🔍 Global Search (Filtered Section Only)")
-        if search:
-            df_filtered = df_filtered[
-                df_filtered.apply(
-                    lambda r: r.astype(str).str.contains(search, case=False).any(),
-                    axis=1
-                )
-            ]
-
-        # ---------------- SIDEBAR FILTER ----------------
+        # Sidebar Filters
         st.sidebar.header("Filters")
-
-        all_courses = sorted(df_original[course_col].dropna().unique())
+        all_courses = sorted(df[course_col].dropna().unique())
 
         selected_courses = st.sidebar.multiselect(
             "Select Course ID",
@@ -89,14 +119,11 @@ if page == "📊 Dashboard":
             default=all_courses
         )
 
-        if selected_courses:
-            df_filtered = df_filtered[df_filtered[course_col].isin(selected_courses)]
+        df_filtered = df[df[course_col].isin(selected_courses)]
 
-        # ---------------- PERFORMANCE CATEGORY ----------------
+        # Performance Category
         def performance(score):
-            if pd.isna(score):
-                return "Low"
-            elif score < 10:
+            if pd.isna(score) or score < 10:
                 return "Low"
             elif score < 18:
                 return "Medium"
@@ -105,6 +132,7 @@ if page == "📊 Dashboard":
 
         df_filtered["Performance"] = df_filtered["out_of_25"].apply(performance)
 
+        # Performance Chart
         st.subheader("📊 Performance Distribution")
 
         perf_df = df_filtered["Performance"].value_counts().reset_index()
@@ -112,9 +140,8 @@ if page == "📊 Dashboard":
 
         fig_perf = px.bar(
             perf_df,
-            x="Count",
-            y="Category",
-            orientation="h",
+            x="Category",
+            y="Count",
             color="Category",
             text_auto=True
         )
@@ -123,74 +150,7 @@ if page == "📊 Dashboard":
 
         st.divider()
 
-        # ---------------- COURSE COMPARISON ----------------
-        st.subheader("⚔ Compare Two Courses")
-
-        search_course = st.text_input("🔎 Search Course ID (Comparison)")
-        filtered_course_list = [
-            c for c in all_courses if search_course.lower() in c.lower()
-        ]
-
-        if len(filtered_course_list) >= 2:
-
-            c1, c2 = st.columns(2)
-            course1 = c1.selectbox("Course 1", filtered_course_list, key="c1")
-            course2 = c2.selectbox("Course 2", filtered_course_list, key="c2")
-
-            compare_df = df_original[df_original[course_col].isin([course1, course2])]
-
-            show_only_graph = st.checkbox("Show Only Graph (Hide Table)")
-            show_distribution = st.checkbox("Show Detailed Distribution")
-
-            if not show_distribution:
-                avg_df = compare_df.groupby(course_col)["out_of_25"].mean().reset_index()
-
-                fig_cmp = px.bar(
-                    avg_df,
-                    x=course_col,
-                    y="out_of_25",
-                    color=course_col,
-                    text_auto=True,
-                    title="Average Score Comparison"
-                )
-            else:
-                fig_cmp = px.histogram(
-                    compare_df,
-                    x="out_of_25",
-                    color=course_col,
-                    barmode="overlay",
-                    opacity=0.6,
-                    title="Score Distribution Comparison"
-                )
-
-            st.plotly_chart(fig_cmp, use_container_width=True)
-
-            if not show_only_graph:
-                st.dataframe(compare_df, use_container_width=True)
-
-        st.divider()
-
-        # ---------------- ASSIGNMENT TREND ----------------
-        st.subheader("📈 Assignment Trend")
-
-        assignment_cols = [c for c in df.columns if c.startswith("A")]
-
-        if assignment_cols:
-            assign_avg = df_filtered[assignment_cols].mean().reset_index()
-            assign_avg.columns = ["Assignment", "Average Score"]
-
-            fig_assign = px.line(
-                assign_avg,
-                x="Assignment",
-                y="Average Score",
-                markers=True
-            )
-
-            st.plotly_chart(fig_assign, use_container_width=True)
-
-        st.divider()
-
-        # ---------------- FILTERED TABLE ----------------
+        # Filtered Data Table
         st.subheader("📋 Filtered Data")
         st.dataframe(df_filtered, use_container_width=True)
 
@@ -203,9 +163,9 @@ if page == "📊 Dashboard":
 
         st.divider()
 
-        # ---------------- FULL DATA ----------------
+        # Full Data
         st.subheader("📂 Full Dataset")
-        st.dataframe(df_original, use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
     else:
         st.info("⬆ Upload CSV file to start analysis")
@@ -238,10 +198,8 @@ elif page == "📧 Email Cleaner":
 
             if email_col:
 
-                original_series = df[email_col].fillna("").astype(str)
-
                 extracted = []
-                for value in original_series:
+                for value in df[email_col].fillna("").astype(str):
                     extracted.extend(re.findall(email_pattern, value))
 
                 df_clean = pd.DataFrame({"Cleaned Email": extracted})
@@ -249,7 +207,7 @@ elif page == "📧 Email Cleaner":
                 df_clean = df_clean.drop_duplicates()
 
                 c1, c2 = st.columns(2)
-                c1.metric("Original Rows", f"{len(original_series):,}")
+                c1.metric("Original Rows", f"{len(df):,}")
                 c2.metric("Unique Clean Emails", f"{len(df_clean):,}")
 
                 st.dataframe(df_clean, use_container_width=True)
@@ -289,4 +247,3 @@ elif page == "📧 Email Cleaner":
                 file_name="cleaned_emails.csv",
                 mime="text/csv"
             )
-
