@@ -6,7 +6,7 @@ import re
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Santhosh | NPTEL Analytics", layout="wide")
 
-# ---------------- NPTEL BACKGROUND ----------------
+# ---------------- BACKGROUND STYLE ----------------
 st.markdown("""
 <style>
 .stApp {
@@ -17,7 +17,7 @@ st.markdown("""
     background-attachment: fixed;
 }
 .block-container {
-    background-color: rgba(255,255,255,0.94);
+    background-color: rgba(255,255,255,0.95);
     padding: 2rem;
     border-radius: 12px;
 }
@@ -46,9 +46,13 @@ if page == "📊 Dashboard":
         df.columns = df.columns.str.strip()
         df_original = df.copy()
 
-        # Detect columns
+        # Detect important columns
         email_col = [c for c in df.columns if "email" in c.lower()][0]
         course_col = [c for c in df.columns if "course" in c.lower()][0]
+
+        if "out_of_25" not in df.columns:
+            st.error("Column 'out_of_25' not found.")
+            st.stop()
 
         df["out_of_25"] = pd.to_numeric(df["out_of_25"], errors="coerce")
 
@@ -77,7 +81,7 @@ if page == "📊 Dashboard":
         # ---------------- SIDEBAR FILTER ----------------
         st.sidebar.header("Filters")
 
-        all_courses = sorted(df_original[course_col].unique())
+        all_courses = sorted(df_original[course_col].dropna().unique())
 
         selected_courses = st.sidebar.multiselect(
             "Select Course ID",
@@ -90,7 +94,9 @@ if page == "📊 Dashboard":
 
         # ---------------- PERFORMANCE CATEGORY ----------------
         def performance(score):
-            if score < 10:
+            if pd.isna(score):
+                return "Low"
+            elif score < 10:
                 return "Low"
             elif score < 18:
                 return "Medium"
@@ -121,45 +127,46 @@ if page == "📊 Dashboard":
         st.subheader("⚔ Compare Two Courses")
 
         search_course = st.text_input("🔎 Search Course ID (Comparison)")
-
         filtered_course_list = [
             c for c in all_courses if search_course.lower() in c.lower()
         ]
 
-        c1, c2 = st.columns(2)
-        course1 = c1.selectbox("Course 1", filtered_course_list, key="c1")
-        course2 = c2.selectbox("Course 2", filtered_course_list, key="c2")
+        if len(filtered_course_list) >= 2:
 
-        compare_df = df_original[df_original[course_col].isin([course1, course2])]
+            c1, c2 = st.columns(2)
+            course1 = c1.selectbox("Course 1", filtered_course_list, key="c1")
+            course2 = c2.selectbox("Course 2", filtered_course_list, key="c2")
 
-        show_only_graph = st.checkbox("Show Only Graph (Hide Table)")
-        show_distribution = st.checkbox("Show Detailed Distribution")
+            compare_df = df_original[df_original[course_col].isin([course1, course2])]
 
-        if not show_distribution:
-            avg_df = compare_df.groupby(course_col)["out_of_25"].mean().reset_index()
+            show_only_graph = st.checkbox("Show Only Graph (Hide Table)")
+            show_distribution = st.checkbox("Show Detailed Distribution")
 
-            fig_cmp = px.bar(
-                avg_df,
-                x=course_col,
-                y="out_of_25",
-                color=course_col,
-                text_auto=True,
-                title="Average Score Comparison"
-            )
-        else:
-            fig_cmp = px.histogram(
-                compare_df,
-                x="out_of_25",
-                color=course_col,
-                barmode="overlay",
-                opacity=0.6,
-                title="Score Distribution Comparison"
-            )
+            if not show_distribution:
+                avg_df = compare_df.groupby(course_col)["out_of_25"].mean().reset_index()
 
-        st.plotly_chart(fig_cmp, use_container_width=True)
+                fig_cmp = px.bar(
+                    avg_df,
+                    x=course_col,
+                    y="out_of_25",
+                    color=course_col,
+                    text_auto=True,
+                    title="Average Score Comparison"
+                )
+            else:
+                fig_cmp = px.histogram(
+                    compare_df,
+                    x="out_of_25",
+                    color=course_col,
+                    barmode="overlay",
+                    opacity=0.6,
+                    title="Score Distribution Comparison"
+                )
 
-        if not show_only_graph:
-            st.dataframe(compare_df, use_container_width=True)
+            st.plotly_chart(fig_cmp, use_container_width=True)
+
+            if not show_only_graph:
+                st.dataframe(compare_df, use_container_width=True)
 
         st.divider()
 
@@ -187,11 +194,9 @@ if page == "📊 Dashboard":
         st.subheader("📋 Filtered Data")
         st.dataframe(df_filtered, use_container_width=True)
 
-        csv = df_filtered.to_csv(index=False).encode("utf-8")
-
         st.download_button(
             "⬇ Download Filtered CSV",
-            data=csv,
+            df_filtered.to_csv(index=False).encode("utf-8"),
             file_name="Filtered_Data.csv",
             mime="text/csv"
         )
@@ -213,41 +218,69 @@ elif page == "📧 Email Cleaner":
 
     st.title("📧 Email Cleaning Tool")
 
-    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"], key="cleaner")
+    input_method = st.radio(
+        "Choose Input Method",
+        ["📂 Upload CSV", "📋 Copy & Paste Emails"]
+    )
 
-    if uploaded_file:
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 
-        df = pd.read_csv(uploaded_file, dtype=str)
-        df.columns = df.columns.str.strip()
+    if input_method == "📂 Upload CSV":
 
-        email_col = st.selectbox("Select Email Column", df.columns)
+        uploaded_file = st.file_uploader("Upload CSV File", type=["csv"], key="cleaner")
 
-        if email_col:
+        if uploaded_file:
 
-            original_series = df[email_col].fillna("").astype(str)
+            df = pd.read_csv(uploaded_file, dtype=str)
+            df.columns = df.columns.str.strip()
 
-            email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+            email_col = st.selectbox("Select Email Column", df.columns)
 
-            all_emails = []
+            if email_col:
 
-            for value in original_series:
-                found = re.findall(email_pattern, value)
-                all_emails.extend(found)
+                original_series = df[email_col].fillna("").astype(str)
 
-            df_clean = pd.DataFrame({email_col: all_emails})
-            df_clean[email_col] = df_clean[email_col].str.lower().str.strip()
+                extracted = []
+                for value in original_series:
+                    extracted.extend(re.findall(email_pattern, value))
+
+                df_clean = pd.DataFrame({"Cleaned Email": extracted})
+                df_clean["Cleaned Email"] = df_clean["Cleaned Email"].str.lower().str.strip()
+                df_clean = df_clean.drop_duplicates()
+
+                c1, c2 = st.columns(2)
+                c1.metric("Original Rows", f"{len(original_series):,}")
+                c2.metric("Unique Clean Emails", f"{len(df_clean):,}")
+
+                st.dataframe(df_clean, use_container_width=True)
+
+                st.download_button(
+                    "⬇ Download Cleaned Emails",
+                    df_clean.to_csv(index=False).encode("utf-8"),
+                    file_name="cleaned_emails.csv",
+                    mime="text/csv"
+                )
+
+    else:
+
+        pasted_text = st.text_area(
+            "Paste Emails Here",
+            height=250,
+            placeholder="example1@gmail.com, example2@gmail.com\nexample3@gmail.com"
+        )
+
+        if pasted_text:
+
+            extracted = re.findall(email_pattern, pasted_text)
+
+            df_clean = pd.DataFrame({"Cleaned Email": extracted})
+            df_clean["Cleaned Email"] = df_clean["Cleaned Email"].str.lower().str.strip()
             df_clean = df_clean.drop_duplicates()
 
-            total_raw = len(original_series)
-            total_clean = len(df_clean)
-
-            st.divider()
-
             c1, c2 = st.columns(2)
-            c1.metric("Original Rows", f"{total_raw:,}")
-            c2.metric("Cleaned Emails", f"{total_clean:,}")
+            c1.metric("Total Extracted Emails", f"{len(extracted):,}")
+            c2.metric("Unique Clean Emails", f"{len(df_clean):,}")
 
-            st.subheader("📋 Cleaned Email List")
             st.dataframe(df_clean, use_container_width=True)
 
             st.download_button(
@@ -256,6 +289,3 @@ elif page == "📧 Email Cleaner":
                 file_name="cleaned_emails.csv",
                 mime="text/csv"
             )
-
-    else:
-        st.info("⬆ Upload CSV to clean emails")
