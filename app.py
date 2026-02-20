@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Santhosh | NPTEL Data Analytics", layout="wide")
+st.set_page_config(page_title="Santhosh | NPTEL Analytics", layout="wide")
 
 # ---------------- NPTEL BACKGROUND ----------------
 st.markdown("""
@@ -23,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 NPTEL Analytics Dashboard")
+st.title("📊 NPTEL Academic Analytics Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
@@ -195,5 +195,4 @@ if uploaded_file:
     st.dataframe(df_original, use_container_width=True)
 
 else:
-
     st.info("⬆ Upload CSV file to start analysis")
