@@ -63,7 +63,7 @@ page = st.sidebar.radio(
 
 if page == "📊 Dashboard":
 
-    st.title("📊 Santhosh Analytics Dashboard")
+    st.title("📊 Assignment Registration Dump Download Dashboard")
 
     uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
@@ -312,4 +312,5 @@ elif page == "📱 Mobile Number Cleaner":
 
     else:
         st.info("Upload or paste numbers to begin.")
+
 
