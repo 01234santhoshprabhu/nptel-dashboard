@@ -159,7 +159,7 @@ if page == "📊 Dashboard":
 
 elif page == "📧 Email Cleaner":
 
-    st.title("📧 Email Cleaning")
+    st.title("📧 Email Cleaner")
 
     input_method = st.radio(
         "Choose Input Method",
@@ -312,6 +312,7 @@ elif page == "📱 Mobile Number Cleaner":
 
     else:
         st.info("Upload or paste numbers to begin.")
+
 
 
 
