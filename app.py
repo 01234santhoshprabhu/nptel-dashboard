@@ -230,7 +230,7 @@ elif page == "📧 Email Cleaner":
 
 elif page == "📱 Mobile Number Cleaner":
 
-    st.title("📱 Enterprise Mobile Number Cleaner")
+    st.title("📱 Mobile Number Cleaner")
 
     def process_numbers(raw_numbers):
 
@@ -312,3 +312,4 @@ elif page == "📱 Mobile Number Cleaner":
 
     else:
         st.info("Upload or paste numbers to begin.")
+
