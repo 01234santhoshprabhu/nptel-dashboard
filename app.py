@@ -74,40 +74,52 @@ if page == "📊 Dashboard":
 
     st.title("📊 Assignment Dump Filtering Dashboard")
 
-    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"], key="dash_upload")
 
     if uploaded_file:
 
         df = pd.read_csv(uploaded_file, encoding="latin1", low_memory=False)
         df.columns = df.columns.str.strip()
-        df_original = df.copy()
 
-        email_col = [c for c in df.columns if "email" in c.lower()][0]
-        course_col = [c for c in df.columns if "course" in c.lower()][0]
+        email_col = [c for c in df.columns if "email" in c.lower()]
+        course_col = [c for c in df.columns if "course" in c.lower()]
 
-        df["out_of_25"] = pd.to_numeric(df["out_of_25"], errors="coerce")
+        if not email_col or not course_col:
+            st.error("CSV must contain email and course columns.")
+        else:
+            email_col = email_col[0]
+            course_col = course_col[0]
 
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Total Candidates", df_original[email_col].nunique())
-        k2.metric("Unique Courses", df_original[course_col].nunique())
-        k3.metric("Total Records", len(df_original))
-        k4.metric("Average Score", round(df_original["out_of_25"].mean(), 2))
+            df["out_of_25"] = pd.to_numeric(df.get("out_of_25"), errors="coerce")
 
-        st.divider()
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("Total Candidates", df[email_col].nunique())
+            k2.metric("Unique Courses", df[course_col].nunique())
+            k3.metric("Total Records", len(df))
+            k4.metric("Average Score", round(df["out_of_25"].mean(), 2))
 
-        df_filtered = df_original.copy()
+            st.divider()
 
-        search = st.text_input("🔍 Global Search")
-        if search:
-            df_filtered = df_filtered[
-                df_filtered.apply(
-                    lambda r: r.astype(str).str.contains(search, case=False).any(),
-                    axis=1
-                )
-            ]
+            search = st.text_input("🔍 Global Search")
 
-        st.subheader("📋 Filtered Data")
-        st.dataframe(df_filtered, use_container_width=True)
+            if search:
+                df = df[
+                    df.apply(
+                        lambda r: r.astype(str).str.contains(search, case=False).any(),
+                        axis=1
+                    )
+                ]
+
+            st.dataframe(df, use_container_width=True)
+
+            st.download_button(
+                "⬇ Download Filtered CSV",
+                df.to_csv(index=False).encode("utf-8"),
+                file_name="Filtered_Data.csv",
+                mime="text/csv"
+            )
+    else:
+        st.info("Upload CSV file to start.")
 
 # ==========================================================
 # ===================== EMAIL CLEANER ======================
@@ -116,25 +128,60 @@ elif page == "📧 Email Cleaner":
 
     st.title("📧 Email Cleaner")
 
-    pasted_text = st.text_area("Paste Emails", height=200)
+    input_method = st.radio(
+        "Choose Input Method",
+        ["📂 Upload CSV", "📋 Copy & Paste Emails"]
+    )
 
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 
-    if pasted_text:
-        extracted = re.findall(email_pattern, pasted_text)
+    if input_method == "📂 Upload CSV":
 
-        df_clean = pd.DataFrame({"Cleaned Email": extracted})
-        df_clean["Cleaned Email"] = df_clean["Cleaned Email"].str.lower().str.strip()
-        df_clean = df_clean.drop_duplicates()
+        uploaded_file = st.file_uploader("Upload CSV File", type=["csv"], key="email_upload")
 
-        st.dataframe(df_clean, use_container_width=True)
+        if uploaded_file:
 
-        st.download_button(
-            "⬇ Download Cleaned Emails",
-            df_clean.to_csv(index=False).encode("utf-8"),
-            file_name="cleaned_emails.csv",
-            mime="text/csv"
-        )
+            df = pd.read_csv(uploaded_file, dtype=str)
+            email_col = st.selectbox("Select Email Column", df.columns)
+
+            original_series = df[email_col].fillna("").astype(str)
+
+            extracted = []
+            for value in original_series:
+                extracted.extend(re.findall(email_pattern, value))
+
+            df_clean = pd.DataFrame({"Cleaned Email": extracted})
+            df_clean["Cleaned Email"] = df_clean["Cleaned Email"].str.lower().str.strip()
+            df_clean = df_clean.drop_duplicates()
+
+            st.dataframe(df_clean, use_container_width=True)
+
+            st.download_button(
+                "⬇ Download Cleaned Emails",
+                df_clean.to_csv(index=False).encode("utf-8"),
+                file_name="cleaned_emails.csv",
+                mime="text/csv"
+            )
+
+    else:
+
+        pasted_text = st.text_area("Paste Emails", height=200, key="email_paste")
+
+        if pasted_text:
+            extracted = re.findall(email_pattern, pasted_text)
+
+            df_clean = pd.DataFrame({"Cleaned Email": extracted})
+            df_clean["Cleaned Email"] = df_clean["Cleaned Email"].str.lower().str.strip()
+            df_clean = df_clean.drop_duplicates()
+
+            st.dataframe(df_clean, use_container_width=True)
+
+            st.download_button(
+                "⬇ Download Cleaned Emails",
+                df_clean.to_csv(index=False).encode("utf-8"),
+                file_name="cleaned_emails.csv",
+                mime="text/csv"
+            )
 
 # ==========================================================
 # ================= MOBILE NUMBER CLEANER ==================
@@ -143,16 +190,16 @@ elif page == "📱 Mobile Number Cleaner":
 
     st.title("📱 Mobile Number Cleaner")
 
-    text = st.text_area("Paste Numbers", height=200)
-
-    if text:
-        numbers = re.split(r"[,\s\n]+", text.strip())
+    def process_numbers(raw_numbers):
 
         valid_numbers = []
-        for num in numbers:
+
+        for num in raw_numbers:
             digits = re.sub(r"\D", "", str(num))
+
             if digits.startswith("91") and len(digits) > 10:
                 digits = digits[-10:]
+
             if len(digits) == 10 and digits[0] in ["6", "7", "8", "9"]:
                 valid_numbers.append(digits)
 
@@ -164,11 +211,47 @@ elif page == "📱 Mobile Number Cleaner":
             "With 91": numbers_with_91
         })
 
-        st.dataframe(df_result, use_container_width=True)
+        return df_result
+
+    method = st.radio(
+        "Choose Input Method",
+        ["📂 Upload CSV/Excel", "📋 Copy & Paste Numbers"]
+    )
+
+    all_numbers = []
+
+    if method == "📂 Upload CSV/Excel":
+
+        uploaded_file = st.file_uploader("Upload File", type=["csv", "xlsx"], key="mobile_upload")
+
+        if uploaded_file:
+
+            if uploaded_file.name.endswith("csv"):
+                df = pd.read_csv(uploaded_file, dtype=str)
+            else:
+                df = pd.read_excel(uploaded_file, dtype=str)
+
+            column = st.selectbox("Select Mobile Number Column", df.columns)
+
+            if column:
+                all_numbers = df[column].dropna().astype(str).tolist()
+
+    else:
+
+        text = st.text_area("Paste Numbers", height=200, key="mobile_paste")
+
+        if text:
+            all_numbers = re.split(r"[,\s\n]+", text.strip())
+
+    if all_numbers:
+
+        result_df = process_numbers(all_numbers)
+
+        st.dataframe(result_df, use_container_width=True)
 
         st.download_button(
             "⬇ Download SMS Ready CSV",
-            df_result.to_csv(index=False).encode("utf-8"),
+            result_df.to_csv(index=False).encode("utf-8"),
             file_name="sms_ready_numbers.csv",
             mime="text/csv"
         )
@@ -179,23 +262,17 @@ elif page == "📱 Mobile Number Cleaner":
 elif page == "📄 PDF Watermark Tool":
 
     st.title("📄 PDF Image Watermark Tool")
-    st.markdown("Upload a PDF and apply your logo watermark to all pages.")
 
-    pdf_file = st.file_uploader("Upload PDF File", type=["pdf"])
-    logo_file = st.file_uploader("Upload Logo Image (PNG/JPG)", type=["png", "jpg", "jpeg"])
+    pdf_file = st.file_uploader("Upload PDF File", type=["pdf"], key="pdf_upload")
+    logo_file = st.file_uploader("Upload Logo Image", type=["png", "jpg", "jpeg"], key="logo_upload")
 
     if pdf_file and logo_file:
-
-        st.subheader("⚙ Watermark Settings")
 
         size_percent = st.slider("Watermark Size (% of page width)", 10, 80, 40)
         opacity = st.slider("Transparency", 0.05, 1.0, 0.2)
         rotation = st.slider("Rotation (Degrees)", -180, 180, 0)
 
-        position = st.selectbox(
-            "Position",
-            ["Center", "Top Center", "Bottom Center"]
-        )
+        position = st.selectbox("Position", ["Center", "Top Center", "Bottom Center"])
 
         def add_watermark(input_pdf, watermark_image):
 
@@ -230,14 +307,7 @@ elif page == "📄 PDF Watermark Tool":
                 c.translate(-page_width / 2, -page_height / 2)
                 c.setFillAlpha(opacity)
 
-                c.drawImage(
-                    img,
-                    x,
-                    y,
-                    width=watermark_width,
-                    height=watermark_height,
-                    mask='auto'
-                )
+                c.drawImage(img, x, y, width=watermark_width, height=watermark_height, mask='auto')
 
                 c.restoreState()
                 c.save()
@@ -266,6 +336,5 @@ elif page == "📄 PDF Watermark Tool":
                 file_name="watermarked_output.pdf",
                 mime="application/pdf"
             )
-
     else:
         st.info("Upload both PDF and Logo Image to continue.")
